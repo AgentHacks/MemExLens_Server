@@ -1,2 +1,10 @@
 Flask==2.3.3
 Werkzeug==2.3.7
+streamlit
+google-generativeai
+pinecone-client
+python-dotenv
+requests
+beautifulsoup4
+lxml
+pinecone==6.0.0
