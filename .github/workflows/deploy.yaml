@@ -1,0 +1,65 @@
+name: Deploy Server to Google Cloud Run
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**'
+      - 'app.py'
+      - 'requirements.txt'
+      - 'Dockerfile'
+      - '.github/workflows/deploy.yaml'
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-east1
+  SERVICE_NAME: memexlens-server
+  SERVICE_ACCOUNT: ${{ vars.SERVICE_ACCOUNT }}
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Authenticate with Google Cloud Platform
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ vars.PROJECT_ID}}
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+    
+      - name: Set up GCP Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+    
+      - name: Activate service account
+        run: |
+          gcloud auth activate-service-account --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
+          gcloud auth list  
+
+      - name: Configure Docker for Google Artifact Registry
+        run: |
+          gcloud auth configure-docker \
+          us-east1-docker.pkg.dev
+
+      - name: Build Docker image
+        run: |
+          docker build -t us-east1-docker.pkg.dev/agenthacks/memexlens-server/${{ env.SERVICE_NAME }}:${{ github.sha }} ./server
+
+      - name: Push Docker image
+        run: |
+          docker push us-east1-docker.pkg.dev/agenthacks/memexlens-server/${{ env.SERVICE_NAME }}:${{ github.sha }}
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image us-east1-docker.pkg.dev/agenthacks/memexlens-server/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --service-account=${{ env.SERVICE_ACCOUNT}} \
+            --set-env-vars GEMINI_API_KEY=${{ env.GEMINI_API_KEY }}     
+
+      - name: Output Cloud Run URL
+        run: |
+          gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)'

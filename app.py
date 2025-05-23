@@ -110,29 +110,6 @@ def receive_data():
             'error': 'Internal server error'
         }), 500
 
-@app.route('/api/data', methods=['GET'])
-def get_all_data():
-    """
-    Endpoint to retrieve all received data
-    """
-    return jsonify({
-        'data': received_data,
-        'count': len(received_data)
-    }), 200
-
-@app.route('/api/data/<int:data_id>', methods=['GET'])
-def get_data_by_id(data_id):
-    """
-    Endpoint to retrieve specific data by ID
-    """
-    data_item = next((item for item in received_data if item['id'] == data_id), None)
-    
-    if data_item:
-        return jsonify(data_item), 200
-    else:
-        return jsonify({
-            'error': 'Data not found'
-        }), 404
 
 @app.route('/api/data/user/<string:user_id>', methods=['GET'])
 def get_data_by_user(user_id):
@@ -170,4 +147,6 @@ def method_not_allowed(error):
     }), 405
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    import os
+    port = int(os.environ.get('PORT', 8080))
+    app.run(debug=False, host='0.0.0.0', port=port)
