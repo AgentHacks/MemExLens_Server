@@ -46,7 +46,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t us-east1-docker.pkg.dev/agenthacks/memexlens-server/${{ env.SERVICE_NAME }}:${{ github.sha }} ./server
+          docker build -t us-east1-docker.pkg.dev/agenthacks/memexlens-server/${{ env.SERVICE_NAME }}:${{ github.sha }} .
 
       - name: Push Docker image
         run: |
