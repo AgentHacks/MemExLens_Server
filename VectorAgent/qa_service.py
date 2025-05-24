@@ -54,14 +54,16 @@ def format_timestamp(iso_str):
 def generate_answer(user_id: str, prompt: str) -> str:
     try:
         matches = query_pinecone(user_id, prompt, top_k=10)
+        relevant_matches = [m for m in matches if m.score and m.score > 0.75]
+        print(f"Relevant matches: {len(relevant_matches)}")
 
-        if not matches:
+        if not relevant_matches:
             return "# Summary\n\nI couldn't find any relevant information from your history.\n\n# Visited Links\n\nNone"
 
         context_blocks = []
         visited_links_set = set()  # Use a set to store unique (url, timestamp) tuples
 
-        for match in matches:
+        for match in relevant_matches:
             metadata = match.get('metadata', {})
             text = metadata.get('text', '').strip()
             url = metadata.get('url', '')
