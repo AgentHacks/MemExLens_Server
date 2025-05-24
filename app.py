@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from datetime import datetime, timezone
 import logging
 from VectorAgent.embedding_service import embed_and_store_in_pinecone  # <- NEW IMPORT
+from VectorAgent.qa_service import generate_answer
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -85,7 +86,10 @@ def get_data_by_user():
 
         logger.info(f"Received request from user {user_id}: {prompt[:50]}{'...' if len(prompt) > 50 else ''}")
 
-        return jsonify({'data': 'dummy data'}), 200
+        #return jsonify({'data': 'dummy data'}), 200
+        answer = generate_answer(user_id, prompt)
+        return jsonify({'data': answer}), 200
+
 
     except Exception as e:
         logger.error(f"Error processing user request: {str(e)}")
