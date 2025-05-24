@@ -115,6 +115,7 @@ User Question: {prompt}
         
         # Safely parse JSON from Gemini output
         try:
+            logger.info(f"Received answer from LLM just before parsing: {answer_text}")
             result = json.loads(answer_text)
         except json.JSONDecodeError as e:
             logger.error(f"❌ JSON parsing failed: {e}\nRaw output:\n{answer_text}")
