@@ -89,7 +89,7 @@ def get_data_by_user():
 
         #return jsonify({'data': 'dummy data'}), 200
         answer = generate_answer(user_id, prompt)
-        print(answer)
+        
         answer = markdown.markdown(answer)
         return jsonify({'data': answer}), 200
 

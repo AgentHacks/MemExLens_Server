@@ -53,13 +53,13 @@ def format_timestamp(iso_str):
 # Generate final answer
 def generate_answer(user_id: str, prompt: str) -> str:
     try:
-        matches = query_pinecone(user_id, prompt, top_k=15)
+        matches = query_pinecone(user_id, prompt, top_k=10)
 
         if not matches:
-            return "Summary:\nI couldn't find any relevant information from your history.\n\nVisited Links:\nNone"
+            return "# Summary\n\nI couldn't find any relevant information from your history.\n\n# Visited Links\n\nNone"
 
         context_blocks = []
-        link_blocks = []
+        visited_links_set = set()  # Use a set to store unique (url, timestamp) tuples
 
         for match in matches:
             metadata = match.get('metadata', {})
@@ -77,7 +77,8 @@ def generate_answer(user_id: str, prompt: str) -> str:
             context_blocks.append(context_block)
 
             if url:
-                link_blocks.append((url, readable_time, text))  # save full text for relevance check
+                # Add tuple of (url, timestamp) to set to ensure uniqueness
+                visited_links_set.add((url, readable_time))
 
         # Join all context
         context = "\n\n".join(context_blocks)
@@ -94,26 +95,28 @@ Answer:"""
         response = model.generate_content(full_prompt)
         answer_text = response.text.strip()
 
-        # Filter links whose content appears in Gemini output (simple substring check)
-        used_links = []
-        for url, ts, text in link_blocks:
-            if text[:100] in answer_text:  # crude check; could improve with fuzzy matching
-                used_links.append((url, ts))
-
-        # Format visited links
-        visited_links_section = ""
-        if used_links:
-            for url, ts in used_links:
-                visited_links_section += f"- [{url}]({url}) — *{ts}*\n"
+        # Format output with proper markdown
+        output_parts = [
+            "# Summary",
+            "",
+            answer_text,
+            "",
+            "# Visited Links",
+            ""
+        ]
+        
+        if visited_links_set:
+            # Convert set to sorted list to maintain consistent order
+            visited_links = sorted([f"- [{url}]({url}) — *{ts}*" for url, ts in visited_links_set])
+            output_parts.extend(visited_links)
         else:
-            visited_links_section = "None"
+            output_parts.append("None")
 
-        final_output = f"""Summary:\n{answer_text}\n\nVisited Links:\n{visited_links_section}"""
-        return final_output
+        return "\n".join(output_parts)
 
     except Exception as e:
         logger.error(f"Error in Q&A generation: {e}")
-        return "Summary:\nAn error occurred while trying to generate an answer.\n\nVisited Links:\nNone"
+        return "# Summary\n\nAn error occurred while trying to generate an answer.\n\n# Visited Links\n\nNone"
 
 # For testing
 if __name__ == "__main__":

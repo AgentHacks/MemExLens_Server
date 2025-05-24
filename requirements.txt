@@ -9,3 +9,4 @@ beautifulsoup4
 lxml
 pinecone==6.0.0
 markdown
+nltk
