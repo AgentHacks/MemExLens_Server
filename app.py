@@ -51,7 +51,6 @@ def receive_data():
 
         logger.info(f"Received data from user {data_obj['userId']}: {len(data_obj['scrapedTextData'])} characters from {data_obj['url']}")
 
-        # 🧠 New step: Embed & store into Pinecone
         embed_and_store_in_pinecone(data_obj, json_data['timestamp'])
 
         return jsonify({'success': True, 'message': 'Data received and stored successfully'}), 201
