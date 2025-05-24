@@ -83,13 +83,7 @@ def generate_answer(user_id: str, prompt: str) -> str:
         context = "\n\n".join(context_blocks)
 
         full_prompt = f"""You are an intelligent assistant. Use the following browsing context to answer the user's question.
-
-Browsing History Context:
-{context}
-
-User Question: {prompt}
-
-Answer:"""
+        Browsing History Context: {context} User Question: {prompt} Answer:"""
 
         response = model.generate_content(full_prompt)
         answer_text = response.text.strip()
