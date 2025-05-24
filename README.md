@@ -1,4 +1,4 @@
-# 🧠 MemExLens Server
+# 🔎 MemExLens Server
 
 MemExLens is an intelligent browser history search and Q&A system powered by Gemini (Google Generative AI) and Pinecone vector database. It enables you to store, search, and ask questions about your browsing history using advanced embeddings and retrieval-augmented generation.
 
@@ -39,6 +39,20 @@ MemExLens_Server/
 ├── .gitignore, .dockerignore    # Ignore rules
 └── README.md                    # This file
 ```
+
+---
+
+## 🖼️ Architecture Diagram
+
+
+
+**Description:**
+- **Text Extraction**: Scraped text from visited web pages.
+- **Chunking**: Splits large text into overlapping chunks for better context.
+- **Gemini Embedding API**: Converts text chunks into semantic vectors.
+- **Pinecone Vector DB**: Stores vectors with metadata (user, URL, timestamp).
+- **Semantic Search & Retrieval**: Finds relevant chunks for user queries.
+- **Q&A Generation**: Gemini model generates answers grounded in retrieved content.
 
 ---
 
@@ -204,8 +218,87 @@ docker run -p 8080:8080 --env-file .env memexlens-server
 
 ### Deploy to Google Cloud Run
 
-- See `.github/workflows/deploy.yaml` for CI/CD automation.
-- Requires GCP project, Artifact Registry, and service account setup.
+You can deploy MemExLens Server to [Google Cloud Run](https://cloud.google.com/run) for scalable, serverless hosting. The project includes a GitHub Actions workflow for automated CI/CD.
+
+#### **Manual Deployment Steps**
+
+1. **Create a Google Cloud Project**  
+   - Enable Cloud Run, Artifact Registry, and IAM APIs.
+
+2. **Create Artifact Registry**  
+   - Example:  
+     ```bash
+     gcloud artifacts repositories create memexlens-server --repository-format=docker --location=us-east1
+     ```
+
+3. **Build and Push Docker Image**  
+   - Authenticate Docker with GCP:  
+     ```bash
+     gcloud auth configure-docker us-east1-docker.pkg.dev
+     ```
+   - Build and push:
+     ```bash
+     docker build -t us-east1-docker.pkg.dev/<PROJECT_ID>/memexlens-server/memexlens-server:latest .
+     docker push us-east1-docker.pkg.dev/<PROJECT_ID>/memexlens-server/memexlens-server:latest
+     ```
+
+4. **Deploy to Cloud Run**  
+   - Deploy the image:
+     ```bash
+     gcloud run deploy memexlens-server \
+       --image us-east1-docker.pkg.dev/<PROJECT_ID>/memexlens-server/memexlens-server:latest \
+       --region us-east1 \
+       --set-env-vars GEMINI_API_KEY=... \
+       --set-env-vars PINECONE_API_KEY=... \
+       --set-env-vars PINECONE_ENVIRONMENT=... \
+       --set-env-vars PINECONE_INDEX_NAME=...
+     ```
+
+5. **Access the Service**  
+   - After deployment, Cloud Run will provide a public HTTPS URL.
+
+---
+
+## 🔄 CI/CD: GitHub Actions Workflow
+
+This project uses a GitHub Actions workflow (`.github/workflows/deploy.yaml`) to automate deployment to Cloud Run on every push to the `main` branch.
+
+### **Workflow Steps**
+
+1. **Checkout Code**  
+   - Uses `actions/checkout` to pull the latest code.
+
+2. **Authenticate with Google Cloud**  
+   - Uses `google-github-actions/auth` with a service account key stored in GitHub Secrets.
+
+3. **Set Up Cloud SDK**  
+   - Installs and configures the Google Cloud SDK.
+
+4. **Configure Docker for Artifact Registry**  
+   - Enables Docker to push images to GCP Artifact Registry.
+
+5. **Build Docker Image**  
+   - Builds the Docker image using the provided `Dockerfile`.
+
+6. **Push Docker Image**  
+   - Pushes the built image to Artifact Registry.
+
+7. **Deploy to Cloud Run**  
+   - Deploys the new image to Cloud Run, passing all required environment variables (API keys, config).
+
+8. **Output Service URL**  
+   - Prints the deployed Cloud Run service URL for reference.
+
+### **Environment Variables & Secrets**
+
+- `GEMINI_API_KEY`, `PINECONE_API_KEY`, `PINECONE_ENVIRONMENT`, etc. are securely passed from GitHub Secrets/Variables.
+- The workflow uses a service account with permissions for Cloud Run and Artifact Registry.
+
+### **How to Use**
+
+- Push to `main` branch triggers deployment.
+- Update secrets and variables in your GitHub repository settings as needed.
+- See `.github/workflows/deploy.yaml` for full details.
 
 ---
 
