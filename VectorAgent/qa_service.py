@@ -54,7 +54,7 @@ def format_timestamp(iso_str):
 def generate_answer(user_id: str, prompt: str) -> str:
     try:
         matches = query_pinecone(user_id, prompt, top_k=10)
-        relevant_matches = [m for m in matches if m.score and m.score > 0.75]
+        relevant_matches = [m for m in matches if m.score and m.score > 0.5]
         print(f"Relevant matches: {len(relevant_matches)}")
 
         if not relevant_matches:
@@ -85,8 +85,18 @@ def generate_answer(user_id: str, prompt: str) -> str:
         # Join all context
         context = "\n\n".join(context_blocks)
 
-        full_prompt = f"""You are an intelligent assistant. Use the following browsing context to answer the user's question.
-        Browsing History Context: {context} User Question: {prompt} Answer:"""
+        full_prompt = f"""
+            You are a highly intelligent assistant.
+            Given the following browsing history context chunks, analyze whether the provided content answers the user's question.
+            - Only include content that directly addresses the question.
+            - If no content is relevant, explicitly say so.
+            Browsing History Context:
+            {context}
+
+            User Question: {prompt}
+
+            Based on the context, answer the user's question or say: "No relevant information found."
+            """
 
         response = model.generate_content(full_prompt)
         answer_text = response.text.strip()
