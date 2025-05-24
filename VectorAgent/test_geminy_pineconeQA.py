@@ -225,7 +225,7 @@ class QASystem:
     """Handle question answering"""
     
     def __init__(self):
-        self.model = genai.GenerativeModel('gemini-pro')
+        self.model = genai.GenerativeModel('gemini-2.5-flash-preview-04-17')
     
     def generate_answer(self, query: str, search_results: List[Dict]) -> str:
         """Generate answer based on search results"""

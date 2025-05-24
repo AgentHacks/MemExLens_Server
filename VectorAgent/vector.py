@@ -1,4 +1,4 @@
-# Smart Browser History - Secure Environment Configuration
+# Smart Browser History - Updated for New JSON Format
 # No hardcoded credentials - everything from .env file
 
 import os
@@ -127,16 +127,18 @@ class GeminiEmbeddingProcessor:
         self.logger.info(f"Connected to Pinecone index: {index_name}")
     
     async def process_website_data(self, api_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Process website data from API"""
+        """Process website data from API with new JSON format"""
         try:
-            url = api_data['url']
+            # Extract data from new format
             timestamp = api_data['timestamp']
-            text_data = api_data['text_data']
+            user_id = api_data['data']['userId']
+            text_data = api_data['data']['scrapedTextData']
+            url = api_data['data']['url']
             
-            self.logger.info(f"Processing website: {url}")
+            self.logger.info(f"Processing website: {url} for user: {user_id}")
             
             # 1. Chunk the text
-            chunks = self._chunk_text(text_data, url, timestamp)
+            chunks = self._chunk_text(text_data, url, timestamp, user_id)
             self.logger.info(f"Created {len(chunks)} chunks")
             
             # 2. Generate embeddings
@@ -148,6 +150,7 @@ class GeminiEmbeddingProcessor:
             return {
                 "status": "success",
                 "url": url,
+                "userId": user_id,
                 "chunks_processed": len(chunks),
                 "timestamp": timestamp
             }
@@ -159,8 +162,8 @@ class GeminiEmbeddingProcessor:
                 "error": str(e)
             }
     
-    def _chunk_text(self, text: str, url: str, timestamp: str) -> List[Dict]:
-        """Split text into overlapping chunks"""
+    def _chunk_text(self, text: str, url: str, timestamp: str, user_id: str) -> List[Dict]:
+        """Split text into overlapping chunks with user context"""
         chunks = []
         chunk_size = self.config.chunk_size
         overlap = self.config.chunk_overlap
@@ -172,15 +175,16 @@ class GeminiEmbeddingProcessor:
             if len(chunk_text) < 50:
                 continue
             
-            # Generate unique ID for chunk
+            # Generate unique ID for chunk (now includes user_id)
             chunk_id = hashlib.md5(
-                f"{url}_{i}_{timestamp}".encode()
+                f"{user_id}_{url}_{i}_{timestamp}".encode()
             ).hexdigest()
             
             chunks.append({
                 "id": chunk_id,
                 "text": chunk_text,
                 "url": url,
+                "userId": user_id,
                 "timestamp": timestamp,
                 "chunk_index": len(chunks),
                 "start_char": i,
@@ -220,7 +224,7 @@ class GeminiEmbeddingProcessor:
         return embeddings
     
     async def _store_in_pinecone(self, chunks: List[Dict], embeddings: List[List[float]]):
-        """Store embeddings in Pinecone"""
+        """Store embeddings in Pinecone with user context"""
         vectors = []
         
         for chunk, embedding in zip(chunks, embeddings):
@@ -229,6 +233,7 @@ class GeminiEmbeddingProcessor:
                 "values": embedding,
                 "metadata": {
                     "url": chunk['url'],
+                    "userId": chunk['userId'],
                     "timestamp": chunk['timestamp'],
                     "text": chunk['text'][:1000],  # Metadata size limit
                     "chunk_index": chunk['chunk_index'],
@@ -266,33 +271,37 @@ class GeminiSearchHandler:
         )
         self.index = pinecone.Index(self.config.pinecone_index_name)
     
-    async def search_and_answer(self, query: str, top_k: int = 5) -> Dict[str, Any]:
-        """Search browsing history and generate answer"""
+    async def search_and_answer(self, prompt: str, user_id: str, top_k: int = 5) -> Dict[str, Any]:
+        """Search browsing history for a specific user and generate answer"""
         try:
-            self.logger.info(f"Processing search query: {query}")
+            self.logger.info(f"Processing search prompt: {prompt} for user: {user_id}")
             
             # 1. Generate query embedding
             query_embedding = genai.embed_content(
                 model="models/embedding-001",
-                content=query,
+                content=prompt,
                 task_type="retrieval_query"  # Different task type for queries
             )
             
-            # 2. Search Pinecone
+            # 2. Search Pinecone with user filter
             search_results = self.index.query(
                 vector=query_embedding['embedding'],
                 top_k=top_k,
-                include_metadata=True
+                include_metadata=True,
+                filter={
+                    "userId": {"$eq": user_id}  # Filter by user ID
+                }
             )
             
             # 3. Prepare context from results
             context = self._prepare_context(search_results.matches)
             
             # 4. Generate answer using Gemini
-            answer = await self._generate_answer(query, context)
+            answer = await self._generate_answer(prompt, context)
             
             return {
-                "query": query,
+                "prompt": prompt,
+                "userId": user_id,
                 "answer": answer,
                 "sources": [
                     {
@@ -309,7 +318,8 @@ class GeminiSearchHandler:
         except Exception as e:
             self.logger.error(f"Error in search_and_answer: {e}")
             return {
-                "query": query,
+                "prompt": prompt,
+                "userId": user_id,
                 "answer": f"Error processing query: {str(e)}",
                 "sources": [],
                 "error": str(e)
@@ -329,11 +339,14 @@ class GeminiSearchHandler:
         
         return "\n\n---\n\n".join(context_parts)
     
-    async def _generate_answer(self, query: str, context: str) -> str:
+    async def _generate_answer(self, prompt: str, context: str) -> str:
         """Generate answer using Gemini Pro"""
-        prompt = f"""You are a helpful assistant that answers questions based on the user's browsing history.
+        if not context:
+            return "I couldn't find any relevant information in your browsing history to answer this question."
+        
+        prompt_template = f"""You are a helpful assistant that answers questions based on the user's browsing history.
 
-User Question: {query}
+User Question: {prompt}
 
 Relevant Information from Browsing History:
 {context}
@@ -346,7 +359,7 @@ Instructions:
 
 Answer:"""
 
-        response = self.chat_model.generate_content(prompt)
+        response = self.chat_model.generate_content(prompt_template)
         return response.text
 
 # ============================================
@@ -354,6 +367,7 @@ Answer:"""
 # ============================================
 
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 
@@ -362,6 +376,15 @@ app = FastAPI(
     title="Smart Browser History API",
     description="Intelligent browser history search using Gemini embeddings",
     version="1.0.0"
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Configure this properly in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Initialize processors (will use environment variables)
@@ -388,15 +411,19 @@ async def startup_event():
         logging.error(f"❌ Startup failed: {e}")
         raise
 
-# Pydantic models
-class WebsiteData(BaseModel):
+# Pydantic models matching your JSON format
+class WebsiteDataPayload(BaseModel):
+    userId: str
+    scrapedTextData: str
     url: str
+
+class WebsiteData(BaseModel):
     timestamp: str
-    text_data: str
+    data: WebsiteDataPayload
 
 class SearchQuery(BaseModel):
-    query: str
-    top_k: int = 5
+    userId: str
+    prompt: str
 
 # API Endpoints
 @app.post("/process-website")
@@ -414,11 +441,12 @@ async def process_website(data: WebsiteData):
 
 @app.post("/search")
 async def search_history(query: SearchQuery):
-    """Search through browsing history"""
+    """Search through browsing history for a specific user"""
     if not searcher:
         raise HTTPException(status_code=503, detail="Service not initialized")
     
-    result = await searcher.search_and_answer(query.query, query.top_k)
+    # Use default top_k of 5
+    result = await searcher.search_and_answer(query.prompt, query.userId, top_k=5)
     
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
@@ -445,6 +473,36 @@ async def get_config():
         "pinecone_environment": config.pinecone_environment,
         "index_name": config.pinecone_index_name
     }
+
+@app.get("/user/{user_id}/stats")
+async def get_user_stats(user_id: str):
+    """Get statistics for a specific user"""
+    if not processor:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+    
+    try:
+        # Query Pinecone for user's data count
+        # This is a simple count query
+        stats_results = processor.index.query(
+            vector=[0] * processor.embedding_dimension,  # Dummy vector
+            top_k=1,
+            include_metadata=True,
+            filter={
+                "userId": {"$eq": user_id}
+            }
+        )
+        
+        return {
+            "userId": user_id,
+            "status": "success",
+            "message": f"User {user_id} has data in the system"
+        }
+    except Exception as e:
+        return {
+            "userId": user_id,
+            "status": "error",
+            "error": str(e)
+        }
 
 # ============================================
 # CREATE REQUIRED FILES
@@ -494,13 +552,79 @@ pydantic>=2.0.0
 # Utilities
 asyncio
 hashlib
-logging
 """
     
     with open("requirements.txt", "w") as f:
         f.write(requirements)
     
     print("✅ Created requirements.txt file")
+
+def create_test_script():
+    """Create a test script for the API"""
+    test_script = """#!/usr/bin/env python3
+# test_api.py - Test script for Smart Browser History API
+
+import requests
+import json
+from datetime import datetime
+
+# API base URL
+BASE_URL = "http://localhost:8000"
+
+def test_health():
+    \"\"\"Test health endpoint\"\"\"
+    response = requests.get(f"{BASE_URL}/health")
+    print("Health Check:", response.json())
+
+def test_process_website():
+    \"\"\"Test processing a website\"\"\"
+    data = {
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "data": {
+            "userId": "user123",
+            "scrapedTextData": "This is a test webpage about Python programming. Python is a high-level programming language known for its simplicity and readability. It supports multiple programming paradigms including procedural, object-oriented, and functional programming.",
+            "url": "https://example.com/python-tutorial"
+        }
+    }
+    
+    response = requests.post(f"{BASE_URL}/process-website", json=data)
+    print("\\nProcess Website Response:", response.json())
+    return response.json()
+
+def test_search(user_id="user123"):
+    \"\"\"Test searching\"\"\"
+    search_data = {
+        "userId": user_id,
+        "prompt": "What programming language is known for simplicity?"
+    }
+    
+    response = requests.post(f"{BASE_URL}/search", json=search_data)
+    print("\\nSearch Response:", response.json())
+    return response.json()
+
+if __name__ == "__main__":
+    print("Testing Smart Browser History API...")
+    
+    # Test health
+    test_health()
+    
+    # Test processing
+    print("\\n" + "="*50)
+    process_result = test_process_website()
+    
+    # Wait a bit for processing
+    import time
+    time.sleep(2)
+    
+    # Test search
+    print("\\n" + "="*50)
+    search_result = test_search()
+"""
+    
+    with open("test_api.py", "w") as f:
+        f.write(test_script)
+    
+    print("✅ Created test_api.py file")
 
 # ============================================
 # MAIN EXECUTION
@@ -510,6 +634,7 @@ if __name__ == "__main__":
     # Create template files
     create_env_template()
     create_requirements_txt()
+    create_test_script()
     
     # Validate configuration
     print("\n🔍 Validating environment configuration...")
