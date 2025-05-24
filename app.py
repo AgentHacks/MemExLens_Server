@@ -9,8 +9,6 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Store received data (in production, you'd use a database)
-received_data = []
 
 @app.route('/api/data', methods=['POST'])
 def receive_data():
@@ -22,7 +20,8 @@ def receive_data():
         # Check if request contains JSON
         if not request.is_json:
             return jsonify({
-                'error': 'Content-Type must be application/json'
+                'success': False,
+                'message': 'Content-Type must be application/json',
             }), 400
         
         # Get JSON data from request
@@ -34,14 +33,16 @@ def receive_data():
         
         if missing_fields:
             return jsonify({
-                'error': f'Missing required fields: {", ".join(missing_fields)}'
+                'success': False,
+                'message': f'Missing required fields: {", ".join(missing_fields)}',
             }), 400
         
         # Validate data object structure
         data_obj = json_data['data']
         if not isinstance(data_obj, dict):
             return jsonify({
-                'error': 'Data field must be an object'
+                'success': False,
+                'message': 'Data field must be an object',
             }), 400
         
         # Validate required fields in data object
@@ -50,7 +51,8 @@ def receive_data():
         
         if missing_data_fields:
             return jsonify({
-                'error': f'Missing required data fields: {", ".join(missing_data_fields)}'
+                'success': False,
+                'message': f'Missing required data fields: {", ".join(missing_data_fields)}',
             }), 400
         
         # Validate timestamp format
@@ -59,26 +61,30 @@ def receive_data():
             datetime.fromisoformat(json_data['timestamp'].replace('Z', '+00:00'))
         except ValueError:
             return jsonify({
-                'error': 'Invalid timestamp format. Use ISO format (e.g., 2023-12-01T10:30:00Z)'
+                'success': False,
+                'message': 'Invalid timestamp format. Use ISO format (e.g., 2023-12-01T10:30:00Z)',
             }), 400
         
         # Validate URL (basic validation)
         url = data_obj['url']
         if not url.startswith(('http://', 'https://')):
             return jsonify({
-                'error': 'Invalid URL format. URL must start with http:// or https://'
+                'success': False,
+                'message': 'Invalid URL format. URL must start with http:// or https://',
             }), 400
         
         # Validate userId is not empty
         if not data_obj['userId'] or not isinstance(data_obj['userId'], str):
             return jsonify({
-                'error': 'userId must be a non-empty string'
+                'success': False,
+                'message': 'userId must be a non-empty string',
             }), 400
         
         # Validate scrapedTextData is not empty
         if not data_obj['scrapedTextData'] or not isinstance(data_obj['scrapedTextData'], str):
             return jsonify({
-                'error': 'scrapedTextData must be a non-empty string'
+                'success': False,
+                'message': 'scrapedTextData must be a non-empty string',                
             }), 400
         
         # Add server timestamp for tracking
@@ -88,41 +94,90 @@ def receive_data():
                 'userId': data_obj['userId'],
                 'scrapedTextData': data_obj['scrapedTextData'],
                 'url': data_obj['url']
-            },
-            'received_at': datetime.now(timezone.utc).isoformat() + 'Z'
+            }
         }
-        
-        # Store the data
-        received_data.append(processed_data)
-        
-        # Log the received data
+              # Log the received data
         logger.info(f"Received data from user {data_obj['userId']}: {len(data_obj['scrapedTextData'])} characters from {data_obj['url']}")
         
         return jsonify({
-            'message': 'Data received successfully',
-            'status': 'success',
-            'userId': data_obj['userId']
+            'success': True,
+            'message': 'Data received successfully'        
         }), 201
         
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}")
         return jsonify({
-            'error': 'Internal server error'
+            'success': False,
+            'message': {str(e)}
         }), 500
 
 
-@app.route('/api/data/user/<string:user_id>', methods=['GET'])
-def get_data_by_user(user_id):
+@app.route('/api/data/user', methods=['POST'])
+def get_data_by_user():
     """
-    Endpoint to retrieve data by specific user ID
+    Endpoint to process user requests with userId and prompt
+    Expected payload: {"userId": "user@123", "prompt": "Find article on Bikes"}
     """
-    user_data = [item for item in received_data if item['data']['userId'] == user_id]
-    
-    return jsonify({
-        'data': user_data,
-        'count': len(user_data),
-        'userId': user_id
-    }), 200
+    try:
+        # Check if request contains JSON
+        if not request.is_json:
+            return jsonify({
+                'error': 'Content-Type must be application/json'
+            }), 400
+        
+        # Get JSON data from request
+        json_data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['userId', 'prompt']
+        missing_fields = [field for field in required_fields if field not in json_data]
+        
+        if missing_fields:
+            return jsonify({
+                'error': f'Missing required fields: {", ".join(missing_fields)}'
+            }), 400
+        
+        # Validate userId
+        user_id = json_data['userId']
+        if not user_id or not isinstance(user_id, str) or len(user_id.strip()) == 0:
+            return jsonify({
+                'error': 'userId must be a non-empty string'
+            }), 400
+        
+        # Validate prompt
+        prompt = json_data['prompt']
+        if not prompt or not isinstance(prompt, str) or len(prompt.strip()) == 0:
+            return jsonify({
+                'error': 'prompt must be a non-empty string'
+            }), 400
+        
+        # Additional validation for prompt length (optional)
+        if len(prompt.strip()) > 1000:
+            return jsonify({
+                'error': 'prompt must be less than 1000 characters'
+            }), 400
+        
+        # Log the received data
+        logger.info(f"Received request from user {user_id}: {prompt[:50]}{'...' if len(prompt) > 50 else ''}")
+        
+        # Process the validated data
+        processed_data = {
+            'userId': user_id.strip(),
+            'prompt': prompt.strip(),
+            'timestamp': datetime.now(timezone.utc).isoformat() + 'Z'
+        }
+        
+        print(json_data)
+        
+        return jsonify({
+            'data': 'dummy data',            
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error processing user request: {str(e)}")
+        return jsonify({
+            'error': 'Internal server error'
+        }), 500
 
 @app.route('/health', methods=['GET'])
 def health_check():
