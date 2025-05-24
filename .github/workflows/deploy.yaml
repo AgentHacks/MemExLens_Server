@@ -9,6 +9,7 @@ on:
       - 'requirements.txt'
       - 'Dockerfile'
       - '.github/workflows/deploy.yaml'
+      - 'VectorAgent/**'
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
