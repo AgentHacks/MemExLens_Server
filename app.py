@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import logging
 from VectorAgent.embedding_service import embed_and_store_in_pinecone  # <- NEW IMPORT
 from VectorAgent.qa_service import generate_answer
+import markdown
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -88,6 +89,8 @@ def get_data_by_user():
 
         #return jsonify({'data': 'dummy data'}), 200
         answer = generate_answer(user_id, prompt)
+        print(answer)
+        answer = markdown.markdown(answer)
         return jsonify({'data': answer}), 200
 
 

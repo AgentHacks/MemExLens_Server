@@ -95,14 +95,12 @@ Answer:"""
 
         # Build final visited links list, sorted by timestamp if desired
         visited_links_sorted = sorted(visited_links_set, key=lambda x: x[1])
-        visited_links_section = "\n".join([f"{ts} - {url}" for url, ts in visited_links_sorted]) if visited_links_sorted else "None"
-
-        final_output = f"""Summary:
-{response.text.strip()}
-
-Visited Links:
-{visited_links_section}
-"""
+        # visited_links_section = " ".join([f"{ts} - {url}" for url, ts in visited_links_sorted]) if visited_links_sorted else "None"
+        visited_links_section = ""
+        if visited_links_sorted:
+            for url, ts in visited_links_sorted:
+                visited_links_section += f"- [{url}]({url}) — *{ts}*\n"
+        final_output = f"""Summary: {response.text.strip()} \n Visited Links: {visited_links_section}"""
         return final_output
 
     except Exception as e:
