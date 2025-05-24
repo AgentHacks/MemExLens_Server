@@ -84,64 +84,30 @@ def generate_answer(user_id: str, prompt: str) -> str:
         # Join all context
         context = "\n\n".join(context_blocks)
 
-        full_prompt = f"""
-You are a helpful assistant.
-
-You are given context from a user's browsing history and a question. 
-Your task is to analyze the context, answer the question using only relevant parts, and list only the URLs actually used.
-
-⚠️ Return your response strictly as a **valid JSON object** in the following format:
-
-{{
-  "summary": "Your concise, helpful answer here...",
-  "visited_links": [
-    {{
-      "url": "https://example.com/page1",
-      "description": "Short explanation or title of the page"
-    }}
-  ]
-}}
-
-Browsing History Context:
-{context}
-
-User Question: {prompt}
-"""
+        full_prompt = f"""You are an intelligent assistant. Use the following browsing context to answer the user's question.
+        Browsing History Context: {context} User Question: {prompt} Answer:"""
 
         response = model.generate_content(full_prompt)
         answer_text = response.text.strip()
+
+        # Format output with proper markdown
+        output_parts = [
+            "# Summary",
+            "",
+            answer_text,
+            "",
+            "# Visited Links",
+            ""
+        ]
         
-        # Safely parse JSON from Gemini output
-        try:
-            logger.info(f"Received answer from LLM just before parsing: {answer_text}")
-            result = json.loads(answer_text)
-        except json.JSONDecodeError as e:
-            logger.error(f"❌ JSON parsing failed: {e}\nRaw output:\n{answer_text}")
-            return json.dumps({
-                "summary": "An error occurred while parsing the model's output.",
-                "visited_links": []
-            }, indent=2)
+        if visited_links_set:
+            # Convert set to sorted list to maintain consistent order
+            visited_links = sorted([f"- [{url}]({url}) — *{ts}*" for url, ts in visited_links_set])
+            output_parts.extend(visited_links)
+        else:
+            output_parts.append("None")
 
-        return json.dumps(result, indent=2)
-
-        # # Format output with proper markdown
-        # output_parts = [
-        #     "# Summary",
-        #     "",
-        #     answer_text,
-        #     "",
-        #     "# Visited Links",
-        #     ""
-        # ]
-        
-        # if visited_links_set:
-        #     # Convert set to sorted list to maintain consistent order
-        #     visited_links = sorted([f"- [{url}]({url}) — *{ts}*" for url, ts in visited_links_set])
-        #     output_parts.extend(visited_links)
-        # else:
-        #     output_parts.append("None")
-
-        # return "\n".join(output_parts)
+        return "\n".join(output_parts)
 
     except Exception as e:
         logger.error(f"Error in Q&A generation: {e}")
