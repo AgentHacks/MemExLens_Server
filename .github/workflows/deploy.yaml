@@ -59,14 +59,14 @@ jobs:
             --image us-east1-docker.pkg.dev/agenthacks/memexlens-server/${{ env.SERVICE_NAME }}:${{ github.sha }} \
             --region ${{ env.REGION }} \
             --service-account=${{ env.SERVICE_ACCOUNT}} \
-            --set-env-vars GEMINI_API_KEY=${{ env.GEMINI_API_KEY }},
-            PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }},
-            PINECONE_ENVIRONMENT=${{ secrets.PINECONE_ENVIRONMENT }},
-            PINECONE_INDEX_NAME=${{ secrets.PINECONE_INDEX_NAME }}, 
-            GCP_PROJECT_ID=${{ env.PROJECT_ID }}, 
-            CHUNK_SIZE=${{ vars.CHUNK_SIZE }},
-            CHUNK_OVERLAP=${{ vars.CHUNK_OVERLAP }},
-            EMBEDDING_BATCH_SIZE=${{ vars.EMBEDDING_BATCH_SIZE }}
+            --set-env-vars GEMINI_API_KEY=${{ env.GEMINI_API_KEY }} \
+            --set-env-vars PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }} \
+            --set-env-vars PINECONE_ENVIRONMENT=${{ secrets.PINECONE_ENVIRONMENT }} \
+            --set-env-vars PINECONE_INDEX_NAME=${{ secrets.PINECONE_INDEX_NAME }} \
+            --set-env-vars GCP_PROJECT_ID=${{ env.PROJECT_ID }} \
+            --set-env-vars CHUNK_SIZE=${{ vars.CHUNK_SIZE }} \
+            --set-env-vars CHUNK_OVERLAP=${{ vars.CHUNK_OVERLAP }} \
+            --set-env-vars EMBEDDING_BATCH_SIZE=${{ vars.EMBEDDING_BATCH_SIZE }}
                  
 
       - name: Output Cloud Run URL
