@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 # Constants
 EMBED_DIM = 768
-CHUNK_SIZE = 1000
-CHUNK_OVERLAP = 200
+CHUNK_SIZE = 6000
+CHUNK_OVERLAP = 300
 
 # Gemini setup
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))

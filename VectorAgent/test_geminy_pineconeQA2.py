@@ -35,7 +35,7 @@ def init_services():
             spec=ServerlessSpec(cloud="gcp", region="us-central1")
         )
         import time; time.sleep(2)
-    return pc.Index(INDEX_NAME), genai.GenerativeModel("gemini-pro")
+    return pc.Index(INDEX_NAME), genai.GenerativeModel("gemini-2.5-flash-preview-04-17")
 
 index, model = init_services()
 
