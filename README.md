@@ -2,6 +2,8 @@
 
 MemExLens is an intelligent browser history search and Q&A system powered by Gemini (Google Generative AI) and Pinecone vector database. It enables you to store, search, and ask questions about your browsing history using advanced embeddings and retrieval-augmented generation.
 
+[Click here to navigate to UI repository](https://github.com/AgentHacks/MemExLens_UI)
+
 ---
 
 ## 🚀 Features
@@ -13,6 +15,9 @@ MemExLens is an intelligent browser history search and Q&A system powered by Gem
 - **Streamlit UI**: Interactive web app for testing, uploading, and querying.
 - **Robust Environment Management**: All credentials and configs via `.env`.
 - **Cloud Ready**: Dockerized and deployable to Google Cloud Run.
+- **Chunk-based Processing**: Large documents are split into manageable chunks with overlap for better context.
+- **Temporal Context**: Results include timestamps showing when pages were visited.
+- **Efficient Storage**: Uses vector embeddings for fast similarity search.
 
 ---
 
@@ -42,14 +47,21 @@ MemExLens_Server/
 
 ---
 
-## 🖼️ Architecture Diagram
+## Demo
 
+![Demo](demo1.gif)
+
+![Screenshot](screenshot2.png)
+
+## 🖼️ Architecture
+
+![Architecture Diagram](arch.png)
 
 
 **Description:**
 - **Text Extraction**: Scraped text from visited web pages.
 - **Chunking**: Splits large text into overlapping chunks for better context.
-- **Gemini Embedding API**: Converts text chunks into semantic vectors.
+- **Gemini Embedding API**: Converts text chunks into semantic vectors (768-dim).
 - **Pinecone Vector DB**: Stores vectors with metadata (user, URL, timestamp).
 - **Semantic Search & Retrieval**: Finds relevant chunks for user queries.
 - **Q&A Generation**: Gemini model generates answers grounded in retrieved content.
@@ -207,6 +219,75 @@ LOG_LEVEL=INFO
 
 ---
 
+## 📚 Example Usage
+
+### Storing Browser History (Python)
+
+```python
+from VectorAgent.embedding_service import embed_and_store_in_pinecone
+
+data = {
+    "userId": "user123",
+    "url": "https://example.com/article",
+    "scrapedTextData": "Full text content of the web page..."
+}
+
+embed_and_store_in_pinecone(data, "2024-01-15T10:30:00Z")
+```
+
+### Querying Browser History (Python)
+
+```python
+from VectorAgent.qa_service import generate_answer
+
+answer = generate_answer(
+    user_id="user123",
+    prompt="What did I read about machine learning last week?"
+)
+print(answer)
+```
+
+### Output Format
+
+The Q&A service returns markdown-formatted responses:
+
+```markdown
+# Summary
+
+Based on your browsing history, you read several articles about machine learning...
+
+# Visited Links
+
+- [https://example.com/ml-basics](https://example.com/ml-basics) — *January 10, 2024 at 2:30 PM UTC*
+- [https://blog.ai/neural-networks](https://blog.ai/neural-networks) — *January 12, 2024 at 9:15 AM UTC*
+```
+
+---
+
+## 🔧 Configuration
+
+### Embedding Parameters
+
+- `EMBED_DIM`: 768 (dimension of Gemini embeddings)
+- `CHUNK_SIZE`: 6000 characters per chunk (default, configurable)
+- `CHUNK_OVERLAP`: 300 characters overlap between chunks (default, configurable)
+
+### Search Parameters
+
+- `top_k`: Number of similar chunks to retrieve (default: 10)
+- Model: Gemini 1.5 Flash for answer generation
+
+---
+
+## 🧰 Utilities
+
+- `test_api.py`: CLI script to test API endpoints.
+- `delete_pinecone.py`: Delete all vectors from Pinecone index.
+- `test_gemini.py`: Debug Gemini API connectivity.
+- `test_pinecone.py`: Debug Pinecone v7 connectivity.
+
+---
+
 ## 🐳 Docker & Cloud Run
 
 ### Build and Run Locally
@@ -302,12 +383,39 @@ This project uses a GitHub Actions workflow (`.github/workflows/deploy.yaml`) to
 
 ---
 
-## 🧰 Utilities
+## 🔒 Privacy & Security
 
-- `test_api.py`: CLI script to test API endpoints.
-- `delete_pinecone.py`: Delete all vectors from Pinecone index.
-- `test_gemini.py`: Debug Gemini API connectivity.
-- `test_pinecone.py`: Debug Pinecone v7 connectivity.
+- User data is isolated by `userId` filtering.
+- Each user can only query their own browsing history.
+- Chunk IDs are generated using MD5 hashing for uniqueness.
+- Never commit your real `.env` file.
+
+---
+
+## 🛠️ Error Handling
+
+- Failed embeddings default to zero vectors to prevent data loss.
+- Service continues processing even if individual chunks fail.
+- Q&A service returns graceful error messages if generation fails.
+
+---
+
+## ⚠️ Limitations
+
+- Maximum chunk size of 6000 characters may split important context.
+- Requires active internet connection for API calls.
+- Vector search may miss exact keyword matches.
+- Storage costs scale with browsing history volume.
+
+---
+
+## 🚀 Future Enhancements
+
+- Add date range filtering for queries.
+- Implement incremental updates for changed pages.
+- Add support for multimedia content extraction.
+- Enable cross-user knowledge sharing (with permissions).
+- Implement local caching for frequently accessed data.
 
 ---
 
@@ -317,15 +425,6 @@ This project uses a GitHub Actions workflow (`.github/workflows/deploy.yaml`) to
 - **Vector DB**: Pinecone v7 (Serverless, GCP region).
 - **Chunking**: Configurable chunk size and overlap for long texts.
 - **User Isolation**: All vectors are tagged with `userId`.
-- **Security**: Never commit your real `.env` file.
-
----
-
-## 📚 Example Usage
-
-1. **Store a webpage** via `/api/data` or Streamlit UI.
-2. **Ask a question** about your browsing history.
-3. **Get answers** with cited sources and links.
 
 ---
 
@@ -354,5 +453,11 @@ Pull requests welcome! Please open issues for bugs or feature requests.
 
 ## 📬 Contact
 
-For questions, reach out via GitHub Issues or email the maintainer.
+For questions, reach out via GitHub Issues or email the maintainers [sarthakd.work@gmail.com](sarthakd.work@gmail.com), [kartikraut023@gmail.com](kartikraut023@gmail.com), [aadityakasbekar@gmail.com](aadityakasbekar@gmail.com)
+
+## Contributors
+
+- [aadityaKasbekar](https://github.com/aadityaKasbekar)
+- [kartikraut98](https://github.com/kartikraut98)
+- [sarthak-deshmukh1999](https://github.com/sarthak-deshmukh1999)
 
