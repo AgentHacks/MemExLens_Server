@@ -5,6 +5,7 @@ import google.generativeai as genai
 import hashlib
 import logging
 from datetime import datetime
+import json
 
 # Setup
 load_dotenv()
@@ -86,39 +87,62 @@ def generate_answer(user_id: str, prompt: str) -> str:
         context = "\n\n".join(context_blocks)
 
         full_prompt = f"""
-            You are a highly intelligent assistant.
-            Given the following browsing history context chunks, analyze whether the provided content answers the user's question.
-            - Only include content that directly addresses the question.
-            - If no content is relevant, explicitly say so.
-            Browsing History Context:
-            {context}
+You are a helpful assistant.
 
-            User Question: {prompt}
+You are given context from a user's browsing history and a question. 
+Your task is to analyze the context, answer the question using only relevant parts, and list only the URLs actually used.
 
-            Based on the context, answer the user's question or say: "No relevant information found."
-            """
+⚠️ Return your response strictly as a **valid JSON object** in the following format:
+
+{{
+  "summary": "Your concise, helpful answer here...",
+  "visited_links": [
+    {{
+      "url": "https://example.com/page1",
+      "description": "Short explanation or title of the page"
+    }}
+  ]
+}}
+
+Browsing History Context:
+{context}
+
+User Question: {prompt}
+"""
 
         response = model.generate_content(full_prompt)
         answer_text = response.text.strip()
-
-        # Format output with proper markdown
-        output_parts = [
-            "# Summary",
-            "",
-            answer_text,
-            "",
-            "# Visited Links",
-            ""
-        ]
         
-        if visited_links_set:
-            # Convert set to sorted list to maintain consistent order
-            visited_links = sorted([f"- [{url}]({url}) — *{ts}*" for url, ts in visited_links_set])
-            output_parts.extend(visited_links)
-        else:
-            output_parts.append("None")
+        # Safely parse JSON from Gemini output
+        try:
+            result = json.loads(answer_text)
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ JSON parsing failed: {e}\nRaw output:\n{answer_text}")
+            return json.dumps({
+                "summary": "An error occurred while parsing the model's output.",
+                "visited_links": []
+            }, indent=2)
 
-        return "\n".join(output_parts)
+        return json.dumps(result, indent=2)
+
+        # # Format output with proper markdown
+        # output_parts = [
+        #     "# Summary",
+        #     "",
+        #     answer_text,
+        #     "",
+        #     "# Visited Links",
+        #     ""
+        # ]
+        
+        # if visited_links_set:
+        #     # Convert set to sorted list to maintain consistent order
+        #     visited_links = sorted([f"- [{url}]({url}) — *{ts}*" for url, ts in visited_links_set])
+        #     output_parts.extend(visited_links)
+        # else:
+        #     output_parts.append("None")
+
+        # return "\n".join(output_parts)
 
     except Exception as e:
         logger.error(f"Error in Q&A generation: {e}")
